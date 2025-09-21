@@ -6,6 +6,17 @@ error_reporting(E_ALL);
 // Этот блок можно просто скопировать из backend_lab.php
 
 require_once 'db_connection.php';
+
+// --- НАШ "ОХРАННИК" ---
+// Проверяем, что в сессии НЕ СУЩЕСТВУЕТ ключа 'user_id'
+if (!isset($_SESSION['user_id'])) {
+    // Если ключа нет, значит, пользователь не вошел.
+    // Перенаправляем его на страницу входа.
+    header('Location: login.php');
+    exit(); // И немедленно останавливаем выполнение скрипта
+}
+// --- КОНЕЦ "ОХРАННИКА" ---
+
 require_once 'Client.php';
 
 // --- ШАГ 2: ПОЛУЧЕНИЕ И ПРОВЕРКА ID КЛИЕНТА ---
@@ -31,9 +42,10 @@ if($client_id <= 0) {
 // --- ПОЛУЧЕНИЕ ДАННЫХ КЛИЕНТА (НОВЫЙ ООП-СПОСОБ) ---
 $client = new Client($pdo); // Создаем объект (конструктор пустой)
 // Вызываем метод find() И СРАЗУ ЖЕ проверяем его результат (то, что он вернет: true или false)
-if ( !$client->find($client_id, $pdo) ) {
-    // Если find() вернул false, то заходим сюда
-    die("Клиент с ID $client_id не найден.");
+$user_id = $_SESSION['user_id'];
+$user_role = $_SESSION['role']; // Получаем роль
+if (!$client->find($client_id, $user_id, $user_role)) {
+    die("Клиент не найден или у вас нет прав на его просмотр.");
 }
 
 // --- ПОЛУЧАЕМ ВСЕ СТАТУСЫ ДЛЯ ВЫПАДАЮЩЕГО СПИСКА ---
@@ -64,7 +76,7 @@ try {
          но мы пока сделаем только отображение -->
     <form action="update_logic.php" method="POST"> <!-- (update_logic.php мы создадим позже) -->
         
-        <input type="hidden" name="client_id" value="<?php echo $client -> id; ?>/>">
+        <input type="hidden" name="client_id" value="<?php echo htmlspecialchars($client->id); ?>">
 
         <!-- 7. Выведи в атрибуты value полей формы текущие данные клиента,
              которые хранятся в массиве $client. Не забудь про htmlspecialchars(). -->

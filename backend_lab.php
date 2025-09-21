@@ -3,32 +3,63 @@
 // --- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ К БД ---
 
 require_once 'db_connection.php';
+
+// --- НАШ "ОХРАННИК" ---
+// Проверяем, что в сессии НЕ СУЩЕСТВУЕТ ключа 'user_id'
+if (!isset($_SESSION['user_id'])) {
+    // Если ключа нет, значит, пользователь не вошел.
+    // Перенаправляем его на страницу входа.
+    header('Location: login.php');
+    exit(); // И немедленно останавливаем выполнение скрипта
+}
+// --- КОНЕЦ "ОХРАННИКА" ---
+
 require_once 'Client.php';
 
 // --- НОВЫЙ БЛОК: ОБРАБОТКА GET-ЗАПРОСОВ (на удаление) ---
 
 // Проверяем, что в GET-запросе есть 'action', и он равен 'delete'
-if(isset($_GET['action']) && $_GET['action'] === 'delete') {
+// if(isset($_GET['action']) && $_GET['action'] === 'delete') {
  
-    $id_to_delete = (int)$_GET['id'] ?? 0;
+//     $id_to_delete = (int)$_GET['id'] ?? 0;
 
-    if($id_to_delete > 0) {
-        $sql = "DELETE FROM clients WHERE id = ? ";
+//     if($id_to_delete > 0) {
+//         $sql = "DELETE FROM clients WHERE id = ? ";
     
-        // Подготовка выражения
-        $stmt = $pdo->prepare($sql);
-        // Выполняем запрос, передавая реальный id в массиве.
-        $stmt->execute([$id_to_delete]);
+//         // Подготовка выражения
+//         $stmt = $pdo->prepare($sql);
+//         // Выполняем запрос, передавая реальный id в массиве.
+//         $stmt->execute([$id_to_delete]);
         
-        $_SESSION['success_message'] = "Клиент с ID #" . $id_to_delete . " успешно удален.";
+//         $_SESSION['success_message'] = "Клиент с ID #" . $id_to_delete . " успешно удален.";
 
+//         header('Location: backend_lab.php');
+//         exit();
+        
+
+//         // $errors[] = 'у удаляемого эдемента нет id';
+//     }
+
+// }
+
+// --- ОБРАБОТКА GET-ЗАПРОСОВ (ООП-СПОСОБ) ---
+if (isset($_GET['action']) && $_GET['action'] === 'delete') {
+
+    $id_to_delete = (int)($_GET['id'] ?? 0);
+
+    if ($id_to_delete > 0) {
+        // Вызываем статический метод и проверяем результат
+        if (Client::deleteById($pdo, $id_to_delete)) {
+            $_SESSION['success_message'] = "Клиент с ID #" . $id_to_delete . " успешно удален.";
+        } else {
+            // Это необязательно, но хорошая практика на случай ошибки
+            $_SESSION['error_message'] = "Не удалось удалить клиента с ID #" . $id_to_delete . ".";
+        }
+        
+        // В любом случае делаем редирект
         header('Location: backend_lab.php');
         exit();
-        
-
-        // $errors[] = 'у удаляемого эдемента нет id';
     }
-
 }
 
 
@@ -42,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['user_name'] ?? '';
     $email = $_POST['user_email'] ?? '';
     $phone = $_POST['user_phone'] ?? '';
+    $user_id = $_SESSION['user_id']; 
     
     // 2. ОЧИСТКА ДАННЫХ (Sanitization)
     // Удаляем пробелы в начале и в конце строки
@@ -70,9 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Проверка email
-    if (empty($email)) {
-        $errors[] = 'Email не может быть пустым.';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if ( !empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL) ) {
         $errors[] = 'Некорректный формат email.';
     }
 
@@ -88,27 +118,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Если ошибок нет
         // 1. Подготовка SQL-запроса с плейсхолдерами (?)
 
-    $sql = "INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)";
+//     $sql = "INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)";
     
-    // 2. Подготовка выражения
-    $stmt = $pdo->prepare($sql);
+//     // 2. Подготовка выражения
+//     $stmt = $pdo->prepare($sql);
     
-    // 3. Выполнение запроса с передачей реальных данных
+//     // 3. Выполнение запроса с передачей реальных данных
 
-    try {
-    $stmt->execute([$name, $email, $phone]); 
+//     try {
+//     $stmt->execute([$name, $email, $phone]); 
     
-    // Записываем сообщение в сессию
-    $_SESSION['success_message'] = "Новый клиент '" . htmlspecialchars($name) . "' успешно добавлен.";
+//     // Записываем сообщение в сессию
+//     $_SESSION['success_message'] = "Новый клиент '" . htmlspecialchars($name) . "' успешно добавлен.";
 
-    // Делаем редирект
-    header('Location: backend_lab.php');
-    exit();
+//     // Делаем редирект
+//     header('Location: backend_lab.php');
+//     exit();
 
-}  catch (\PDOException $e) {
-        // Если произошла ошибка при выполнении запроса
-        echo "<h2>Ошибка при добавлении клиента: " . $e->getMessage() . "</h2>";
+// }  catch (\PDOException $e) {
+//         // Если произошла ошибка при выполнении запроса
+//         echo "<h2>Ошибка при добавлении клиента: " . $e->getMessage() . "</h2>";
+//     }
+// 1. Создаем объект Client
+    $client = new Client($pdo);
+
+    // 2. Наполняем объект данными из формы и сессии
+    $client->name = $name;
+    $client->email = $email;
+    $client->phone = $phone;
+    $client->status_id = 1; // Новый клиент всегда получает статус 1
+    $client->user_id = $user_id; // Привязываем к текущему пользователю
+
+    // 3. Вызываем метод save(). Он сам сделает INSERT.
+    if ($client->save()) {
+        $_SESSION['success_message'] = "Новый клиент '" . htmlspecialchars($client->name) . "' успешно добавлен.";
+        header('Location: backend_lab.php');
+        exit();
+    } else {
+        die("Произошла ошибка при добавлении клиента.");
     }
+    // --- КОНЕЦ НОВОГО КОДА ---
 
     } else {
         // Если есть ошибки, выводим их
@@ -148,7 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // $clients = $stmt_select->fetchAll();
 
 // --- НОВЫЙ ООП-СПОСОБ ---
-$clients = Client::findAll($pdo);
+// $clients = Client::findAll($pdo);
+$user_id = $_SESSION['user_id'];
+$user_role = $_SESSION['role']; 
+$clients = Client::findAll($pdo, $user_id, $user_role);
 
 
 
@@ -162,6 +214,11 @@ $clients = Client::findAll($pdo);
     <title>Лаборатория PHP</title>
 </head>
 <body>
+    <div style="padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; background-color: #f4f4f4;">
+        Вы вошли как: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong>
+    |
+        <a href="logout.php">Выйти</a>
+    </div>
 
     <h1>Форма для тестирования</h1>
 

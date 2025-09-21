@@ -2,7 +2,7 @@
 
     class Database {
         private $host = 'localhost';
-        private $db_name = 'wp_test_site';
+        private $db_name = 'my_crm_db';
         private $username = 'root';
         private $password = 'root';
         private $charset = 'utf8mb4';
